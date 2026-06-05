@@ -4,6 +4,8 @@ export interface ToastState {
   type: "info" | "success" | "error";
 }
 
+let hideTimer: ReturnType<typeof setTimeout> | null = null;
+
 export function useToast() {
   const toast = useState<ToastState>("toast", () => ({
     show: false,
@@ -12,10 +14,12 @@ export function useToast() {
   }));
 
   function showToast(message: string, type: ToastState["type"] = "info") {
+    if (hideTimer) clearTimeout(hideTimer);
     toast.value = { show: true, message, type };
-    setTimeout(() => {
+    hideTimer = setTimeout(() => {
       toast.value.show = false;
-    }, 3000);
+      hideTimer = null;
+    }, 2000);
   }
 
   return { toast: readonly(toast), showToast };
