@@ -40,7 +40,7 @@ interface DoubanApiItem {
   rank: number;
 }
 
-const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 小时
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 小时（榜单一天更新一次即可）
 const API_BASE = "https://movie.douban.com/j/chart/top_list";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36";
 const PAGE_SIZE = 20;
@@ -50,7 +50,7 @@ const allItemsCache = new MemoryCache<DoubanHotItem[]>({ maxSize: 30 });
 /** 将豆瓣 API 返回的 item 转为 DoubanHotItem */
 function mapItem(raw: DoubanApiItem, index: number): DoubanHotItem {
   const score = raw.score || raw.rating?.[0] || "";
-  const title = score ? `${score} ${raw.title}` : raw.title;
+  const title = score ? `【${score}】${raw.title}` : raw.title;
   const desc = [raw.types?.join("/"), raw.regions?.join("/")]
     .filter(Boolean)
     .join(" · ");
@@ -170,7 +170,7 @@ async function fetchAllItems(categoryId: string): Promise<DoubanHotItem[]> {
 }
 
 export function extractSearchTerm(title: string): string {
-  return title.replace(/^[\d.]+\s+/, "").trim() || title;
+  return title.replace(/^【[\d.]+】/, "").trim() || title;
 }
 
 /** 分页获取指定分类的数据 */
