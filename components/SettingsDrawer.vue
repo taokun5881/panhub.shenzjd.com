@@ -176,7 +176,7 @@ watch(
   () => props.modelValue,
   (v) => {
     if (!v) return;
-    inner.value = structuredClone(v);
+    inner.value = JSON.parse(JSON.stringify(v));
   },
   { immediate: true }
 );
