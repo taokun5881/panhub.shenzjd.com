@@ -1,59 +1,45 @@
-name: Sync upstream (merge from fixed upstream)
+name: Sync upstream
 
 on:
   schedule:
-    - cron: "0 3 * * *" # 每天 03:00 UTC 运行
+    - cron: "0 3 * * *"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: sync-upstream
+  group: sync-upstream-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     env:
-      # 固定上游仓库与分支（按需改动）
+      TARGET_BRANCH: main
       UPSTREAM_REPO: wu529778790/panhub.shenzjd.com
       UPSTREAM_BRANCH: main
-      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
-      - name: Checkout fork
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
+          ref: ${{ env.TARGET_BRANCH }}
           fetch-depth: 0
-
-      - name: Git identity
-        run: |
-          git config user.name  "github-actions[bot]"
+      - run: |
+          git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Add upstream and fetch
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git" || git remote set-url upstream "https://github.com/${UPSTREAM_REPO}.git"
+          git fetch upstream "${UPSTREAM_BRANCH}" --prune
+      - shell: bash
         run: |
-          git remote add upstream https://github.com/${UPSTREAM_REPO}.git || git remote set-url upstream https://github.com/${UPSTREAM_REPO}.git
-          git fetch upstream --tags --prune
-
-      - name: Determine branches
-        id: b
-        run: |
-          local_default="${DEFAULT_BRANCH:-main}"
-          # 兜底：若无 origin/HEAD，尝试识别 main/master
-          if ! git rev-parse --verify "origin/$local_default" >/dev/null 2>&1; then
-            if git rev-parse --verify origin/main >/dev/null 2>&1; then local_default=main; else local_default=master; fi
-          fi
-          echo "local_default=$local_default" >> $GITHUB_OUTPUT
-          echo "upstream_default=${UPSTREAM_BRANCH}" >> $GITHUB_OUTPUT
-
-      - name: Merge upstream -> fork (no fast-forward)
-        run: |
-          set -e
-          git checkout "${{ steps.b.outputs.local_default }}"
-          # 保留 fork 的提交，合并上游最新提交
-          git merge --no-edit "upstream/${{ steps.b.outputs.upstream_default }}"
-          git push origin "${{ steps.b.outputs.local_default }}"
-
-      - name: Sync tags
-        run: git push --tags origin
+          set -euo pipefail
+          backup_dir="$RUNNER_TEMP/local-workflows"
+          mkdir -p "$backup_dir"
+          [ -d .github/workflows ] && cp -a .github/workflows/. "$backup_dir/" || true
+          git merge --no-edit "upstream/${UPSTREAM_BRANCH}"
+          rm -rf .github/workflows
+          mkdir -p .github/workflows
+          cp -a "$backup_dir/." .github/workflows/ || true
+          git add -A .github/workflows
+          git diff --cached --quiet || git commit -m "ci: keep local workflows after upstream sync"
+      - run: git push origin "HEAD:${TARGET_BRANCH}"
+      - run: git push --tags origin
